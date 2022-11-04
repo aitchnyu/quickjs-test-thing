@@ -1,12 +1,3 @@
-console.log()
-console.log(1, {}, "Foo")
-
-console.debug(1, "Foo")
-
-console.error(2,2, "Foo")
-
-expect(2).toBe(2)
-
 test("Math stuff", () => {
     console.log('math stuff')
     expect(2).toBe(2)
@@ -18,17 +9,27 @@ test("Math stuff", () => {
 expect(2).toBe(2)
 
 test("Response code stuff", () => {
-    console.log('resp')
+    // console.log('resp')
     expect(200).toBeLevel2xx()
-    expect(299).toBeLevel2xx()
-    expect(300).toBeLevel3xx()
-    expect(404).toBeLevel4xx()
-    if(true) {
-        expect(500).toBeLevel2xx()
-        expect(500).not.toBeLevel2xx()
-    }
     expect('').toBeLevel2xx()
     expect('').not.toBeLevel2xx()
 })
 
-expect(2).toBe(2)
+let foo
+
+onRequest((request) => {
+    console.log("request params", request.params)
+    env.set('dance', 'fandango')
+    foo = 123
+})
+
+onResponse((response) => {
+    test("response stuff", () => {
+        expect(response.status).toBeLevel2xx()
+    })
+    console.log('foo is', foo, 'dance', env.get('dance'))
+})
+
+console.log({}, [], 123)
+console.log("hello")
+env.set('foo', 'bar')

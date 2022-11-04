@@ -13,45 +13,24 @@ $ npm run main demopostrequest # runs main/demopostrequest on demopostrequest.js
 - Show output even after execution is interrupted by error
 - Hopefully no subtle memory errors
 
-## Todo stuff
-
-Switch contexts. Have pre context with request. Extract request after running. Have response and allow those apis. Have the pw. api for both.
-
-Env thing. 
-
-Do the test thing. Push to default or named tests.
-
-Does it meet the needs of the cli?
-
-Show diff context based on unified/pre/post
-runPre(req, env)
-runResponse(resp, env)
-unified()
-unified.before(req)
-unified.after(resp)
-unified.kill()
-
-
 ### New sandbox
 Console - done
 test and expect - done
-response
+response - done
 env
 onrequest
 onresponse
 
+## Todo stuff
 
-Execution failed: {
-  name: 'ReferenceError',
-  message: "'x' is not defined",
-  stack: '    at <eval> (ours.js:8)\n'
-}
+Integrate into existing codebase
+Complete test suites
 
-Include this as test case for finding line no 35
-    at lineNumber (lib.js:32)
-    at toBeLevelxxx (lib.js:111)
-    at toBeLevel2xx (lib.js:116)
-    at <anonymous> (ours.js:35)
-    at test (lib.js:15)
-    at <eval> (ours.js:37)
+Enable del for env. Handle invalid inputs for get, set and other methods. Type checking
+Does it meet the needs of the cli?
+
+pw.console and `x = ` gave a memory error. Global scripts may be a pain.
+
+
+
 
