@@ -28,22 +28,13 @@ function parseTemplate(str, variables) {
   }
 
   return depth > ENV_MAX_EXPAND_LIMIT
-    ? null
+    ? str // todo return unresolved string
     : result
 }
 
 class VmWrapper {
   vm = null;
   handle = null;
-
-  context = null
-  env = null
-
-  constructor(context) {
-    // todo context has mode, env and optionally response
-    this.context = context
-    // this.env = env
-  }
 
   async init() {
     if (this.vm) {
@@ -82,15 +73,6 @@ class VmWrapper {
       console.log("VM reports error", out)
       throw out
     }
-    result = await this.vm.evalCode(`setContext(${JSON.stringify(this.context)})`)
-    if (result.error) {
-      // todo use some way to consume this without dispose
-      const out = this.vm.dump(result.error)
-      result.error.dispose()
-      console.log("VM reports error", out)
-      throw out
-    }
-
   }
 
   async evalCode(code, filename) {
@@ -120,65 +102,17 @@ class VmWrapper {
   }
 }
 
-export class ScriptRunner {
-  vm
-
-  // todo inform that functions will return error
-  async init(script, env) {
-    this.vm = new VmWrapper({ mode: 'current', env })
-    // let maybeError
-    return await this.vm.evalCode(script, "ours.js")
-  }
-
-  async handleRequest(request) {
-    return await this.vm.evalCode(`callbackHandler.executeRequestCallbacks(${JSON.stringify(request)})`)
-  }
-
-  async handleResponse(response) {
-    return await this.vm.evalCode(`callbackHandler.executeResponseCallbacks(${JSON.stringify(response)})`)
-  }
-
-  async getOutput() {
-    return await this.vm.getOutput()
-  }
-
-  async dispose() {
-    this.vm.dispose()
-  }
-}
-
-async function demo() {
-  const scriptRunner = new ScriptRunner()
-  let maybeError 
-  maybeError = await scriptRunner.init(readFileSync('src/demo.js', 'utf8'), { global: [], selected: [] })
-  if (maybeError) {
-    console.log('failed init', maybeError)
-  }
-  maybeError = await scriptRunner.handleRequest({
-    headers: {},
-    params: { a: 123, b: "foo" }
-  })
-  if (maybeError) {
-    console.log('failed req', maybeError)
-  }
-  maybeError = await scriptRunner.handleResponse({
-    headers: {},
-    status: 200,
-    body: "Some body"
-  })
-  if (maybeError) {
-    console.log('failed resp', maybeError)
-  }
-  const res = await scriptRunner.getOutput()
-  console.log(res)
-  scriptRunner.dispose()
-}
-
-export async function execTestScript(script, env, response) {
-  const vm = new VmWrapper({ mode: 'legacyPostRequest', env, response })
+// todo add request
+export async function execTestScript(script, env, artifact, shared, response) {
+  const vm = new VmWrapper()
+  const context = {env, artifact, shared, response}
+  await vm.evalCode(`setPostRequestContext(${JSON.stringify(context)})`)
   const maybeError = await vm.evalCode(script, "ours.js")
-  // todo move this to either
-  const out = maybeError ? { error: maybeError } : { result: await vm.getOutput() }
+  const out = {
+    error: maybeError,
+    result: await vm.getOutput()
+  }
+  // const out = maybeError ? { error: maybeError } : { result: await vm.getOutput() }
   vm.dispose()
   return out
 }
@@ -187,6 +121,8 @@ async function demopostrequest() {
   console.log(await execTestScript(
     readFileSync('src/demopostrequest.js', 'utf8'),
     { global: [], selected: [] },
+    {},
+    {},
     {
       headers: {},
       status: 200,
@@ -195,11 +131,16 @@ async function demopostrequest() {
   ))
 }
 
-export async function execPreRequestScript(script, env) {
-  const vm = new VmWrapper({ mode: 'legacyPreRequest', env: env })
+export async function execPreRequestScript(script, env, artifact, request) {
+  const vm = new VmWrapper()
+  const context = {env, artifact, request}
+  await vm.evalCode(`setPreRequestContext(${JSON.stringify(context)})`)
   const maybeError = await vm.evalCode(script, "ours.js")
   // todo move this to Either
-  const out = maybeError ? { error: maybeError } : { result: await vm.getOutput() }
+  const out = {
+    error: maybeError,
+    result: await vm.getOutput()
+  }
   vm.dispose()
   return out
 }
@@ -208,12 +149,18 @@ async function demoprerequest() {
   // const env = {global: [], selected: []}
   console.log(await execPreRequestScript(
     readFileSync('src/demoprerequest.js', 'utf8'),
-    { global: [], selected: [] }))
+    { global: [], selected: [] },
+    {},
+    {
+      headers: {},
+      params: { a: 123, b: "foo" }
+    }
+    ))
 }
 
 function main() {
   const which = process.argv[process.argv.length - 1]
-  const options = { demo, demopostrequest, demoprerequest }
+  const options = { demopostrequest, demoprerequest }
   // hack to diffentiate between calling from cmd or import
   if (options.hasOwnProperty(which)) {
     options[which]()

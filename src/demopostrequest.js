@@ -17,5 +17,7 @@ pw.env.set('foo', '<<bar>>')
 pw.env.set('bar', 'baz')
 pw.console.log('foo is', pw.env.get('foo'))
 
+hopp.shared.set('foo', {a: 123})
+
 pw.console.log('foo', pw.env.resolve('foo <<foo>> foo'))
 pw.console.log('foo getResolve', pw.env.getResolve('foo'))

@@ -10,7 +10,18 @@ todo Include this as test case for finding line no 35
 
 function lineNumber() {
     const stacktrace = new Error().stack
-    return parseInt(stacktrace.match(/\(ours\.js:(\d+)\)/)[1])
+    const match = stacktrace.match(/\(ours\.js:(\d+)\)/)
+    if (match) {
+        return parseInt(stacktrace.match(/\(ours\.js:(\d+)\)/)[1])
+    } else {
+        /*
+        todo why does sole line 
+        at lineNumber (lib.js:12)
+        at log (lib.js:26)
+        at <eval> (ours.js)
+        */
+        return 1
+    }
 }
 
 
@@ -25,8 +36,8 @@ class Console {
         this.consoleOutput.push({ level: 'log', args: args, line: lineNumber() })
     }
 
-    info(...args) {
-        this.consoleOutput.push({ level: 'info', args: args, line: lineNumber() })
+    warn(...args) {
+        this.consoleOutput.push({ level: 'warn', args: args, line: lineNumber() })
     }
 
     debug(...args) {
@@ -75,7 +86,6 @@ class Expect {
     constructor(testSuite, lhs, generateNot = true) {
         this.testSuite = testSuite
         this.lhs = lhs
-        // this.negation = negation
         if (generateNot) {
             this.not = new Expect(this.testSuite, lhs, false)
         }
@@ -84,52 +94,55 @@ class Expect {
     compare(comparison) {
         /*
         Xor expresses this truth table
-        this.not undefined comparison result
-                         F          F      F
-                         F          T      T
-                         T          F      T
-                         T          T      F
+        this.not === undefined   comparison   result
+                             F            F        F
+                             F            T        T
+                             T            F        T
+                             T            T        F
         */
         return Boolean((this.not === undefined) ^ comparison)
     }
 
 
     toBe(rhs) {
-        // this.pushExpectResults({comparison:this.lhs === rhs, rhs, testType:'toBe'})
-        const failure = this.compare(this.lhs === rhs) ? null : 'COMPARISON'
+        // IIFE to simplify a nested if
+        const failure = () => {
+            if (typeof (this.lhs) !== typeof (rhs)) {
+                return 'TYPE_MISMATCH'
+            }
+            if (!this.compare(this.lhs === rhs)) {
+                return 'COMPARISON'
+            }
+            return null
+        }()
         this.testSuite.pushExpectResults({
-            // todo stringify values
+            // todo stringify values?
             lhs: this.lhs,
             rhs,
             failure,
             // hasPassed: Boolean(this.negation ^ comparison),
             // doesTypeMatch: doesTypeMatch,
             testType: 'toBe',
-            negation: (this.not === null),
+            negation: (this.not === undefined),
             line: lineNumber()
         })
     }
 
     toBeLevelxxx(min, max, name) {
-        // todo this should accept both result, number, strings like numbers
-        // wrong type should fail for wrong type
-
-        let failure = null;
-        if (Number.isFinite(this.lhs)) {
-            if (this.compare(this.lhs < min || this.lhs > max)) {
-                failure = 'COMPARISON'
+        // IIFE to simplify a nested if
+        const failure = () => {
+            if (!Number.isFinite(this.lhs)) {
+                return 'TYPE_MISMATCH'
             }
-        } else {
-            failure = 'TYPE_MISMATCH'
-        }
-
+            if (this.compare(this.lhs < min || this.lhs > max)) {
+                return 'COMPARISON'
+            }
+            return null
+        }()
         this.testSuite.pushExpectResults({
-            // todo stringify values
+            // todo stringify values?
             lhs: this.lhs,
-            // rhs,
             failure,
-            // hasPassed: Boolean(this.negation ^ comparison),
-            // doesTypeMatch: doesTypeMatch,
             testType: name,
             negation: (this.not === undefined),
             line: lineNumber()
@@ -152,32 +165,123 @@ class Expect {
         this.toBeLevelxxx(500, 599, 'toBeLevel5xx')
     }
 
-    // todo tohaveprop
-    // length
+    toBeType(rhs) {
+        // IIFE to simplify a nested if
+        const failure = () => {
+            if (![
+                "string",
+                "boolean",
+                "number",
+                "object",
+                "undefined",
+                "bigint",
+                "symbol",
+                "function",
+            ].includes(rhs)) {
+                return 'UNSUPPORTED_TYPE'
+            }
+            if (this.compare(typeof (this.lhs) !== rhs)) {
+                return 'TYPE_MISMATCH'
+            }
+            return null
+        }()
+
+        this.testSuite.pushExpectResults({
+            lhs: this.lhs,
+            rhs,
+            failure,
+            testType: 'toBeType',
+            negation: (this.not === undefined),
+            line: lineNumber()
+        })
+    }
+
+    toHaveLength(rhs) {
+        // IIFE to simplify a nested if
+        const failure = () => {
+            if (!(Array.isArray(this.lhs) || typeof this.lhs === "string")) {
+                return 'TYPE_MISMATCH'
+            }
+            if (!(typeof rhs === "number" && !Number.isNaN(rhs))) {
+                return 'TYPE_MISMATCH'
+            }
+            if (this.compare(this.lhs.length !== rhs)) {
+                return 'COMPARISON'
+            }
+            return null
+        }()
+        this.testSuite.pushExpectResults({
+            lhs: this.lhs,
+            rhs,
+            failure,
+            testType: 'toHaveLength',
+            negation: (this.not === undefined),
+            line: lineNumber()
+        })
+    }
+
+    toInclude(rhs) {
+        // IIFE to simplify a nested if
+        const failure = () => {
+            if (!(Array.isArray(this.lhs) || typeof this.lhs === "string")) {
+                return 'TYPE_MISMATCH'
+            }
+            if (rhs === null || rhs === undefined) {
+                return 'UNSUPPORTED_TYPE'
+            }
+            if (this.compare(!this.lhs.includes(rhs))) {
+                return 'COMPARISON' // todo use some other constant?
+            }
+            return null
+        }()
+        this.testSuite.pushExpectResults({
+            lhs: this.lhs,
+            rhs,
+            failure,
+            testType: 'toInclude',
+            negation: (this.not === undefined),
+            line: lineNumber()
+        })
+    }
+
+    toHaveProperty(rhs) {
+        // IIFE to simplify a nested if
+        const failure = () => {
+            if (this.lhs === null || this.lhs === undefined) {
+                return 'UNSUPPORTED_TYPE'
+            }
+            if (this.compare(!this.lhs.hasOwnProperty(rhs))) {
+                return 'COMPARISON' // todo use some other constant?
+            }
+            return null
+        }()
+        this.testSuite.pushExpectResults({
+            lhs: this.lhs,
+            rhs,
+            failure,
+            testType: 'toHaveProperty',
+            negation: (this.not === undefined),
+            line: lineNumber()
+        })
+    }
 }
 
-class Env {
-    global = null
-    selected = null
-
+class EnvPart {
     constructor(data) {
-        this.global = data.global
-        this.selected = data.selected
+        this.data = data
     }
 
     get(key) {
         if (typeof (key) !== "string") {
             throw Error('key is not string')
         }
-        const maybeFromSelected = this.selected.find(item => item.key === key)
-        if (maybeFromSelected) {
-            return maybeFromSelected.value
+        // todo check if its not resolved
+        const maybeValue = this.data.find(item => item.key === key)
+        // const maybeValue = this.getRaw(key)
+        if (!maybeValue) {
+            return undefined
         }
-        const maybeFromGlobal = this.global.find(item => item.key === key)
-        if (maybeFromGlobal) {
-            return maybeFromGlobal.value
-        }
-        return undefined
+        return hostResolve(maybeValue.value, this.data)
     }
 
     set(key, value) {
@@ -187,62 +291,177 @@ class Env {
         if (typeof (value) !== "string") {
             throw Error('value is not string')
         }
-        const maybeFromSelected = this.selected.find(item => item.key === key)
-        if (maybeFromSelected) {
-            maybeFromSelected.value = value
-            return
+        const maybeFound = this.data.find(item => item.key === key)
+        if (maybeFound) {
+            maybeFound.value = value
+        } else {
+            this.data.push({ key: key, value: value })
         }
-        const maybeFromGlobal = this.global.find(item => item.key === key)
-        if (maybeFromGlobal) {
-            maybeFromGlobal.value = value
-            return
-        }
-        this.selected.push({ key: key, value: value })
     }
 
     resolve(key) {
         if (typeof (key) !== "string") {
             throw Error('key is not string')
         }
-        return hostResolve(key, [...this.selected, ...this.global])
+        return hostResolve(key, this.data)
+    }
+
+    getRaw(key) {
+        if (typeof (key) !== "string") {
+            throw Error('key is not string')
+        }
+        const maybeValue = this.data.find(item => item.key === key)
+        if (maybeValue) {
+            return maybeValue.value
+        }
+        return undefined
+    }
+
+    delete(key) {
+        if (typeof (key) !== "string") {
+            throw Error('key is not string')
+        }
+        const index = this.data.findIndex((x) => x.key === key)
+        this.data.splice(index, 1)
+    }
+}
+
+class BaseEnv {
+    globalData = null
+    selectedData = null
+
+    constructor(data) {
+        this.globalData = data.global
+        this.selectedData = data.selected
+        // this.global = new EnvPart(data.global)
+        // this.active = new EnvPart(data.selected)
+    }
+
+    getRaw(key) {
+        if (typeof (key) !== "string") {
+            throw Error('key is not string')
+        }
+        const maybeFromSelected = this.selectedData.find(item => item.key === key)
+        if (maybeFromSelected) {
+            return maybeFromSelected.value
+        }
+        const maybeFromGlobal = this.globalData.find(item => item.key === key)
+        if (maybeFromGlobal) {
+            return maybeFromGlobal.value
+        }
+        return undefined
     }
 
     getResolve(key) {
         if (typeof (key) !== "string") {
             throw Error('key is not string')
         }
-        return hostResolve(this.get(key), [...this.selected, ...this.global])
+        const maybeValue = this.getRaw(key)
+        if (!maybeValue) {
+            return undefined
+        }
+        return hostResolve(maybeValue, [...this.selectedData, ...this.globalData])
+    }
+
+    set(key, value) {
+        if (typeof (key) !== "string") {
+            throw Error('key is not string')
+        }
+        if (typeof (value) !== "string") {
+            throw Error('value is not string')
+        }
+        const maybeFromSelected = this.selectedData.find(item => item.key === key)
+        if (maybeFromSelected) {
+            maybeFromSelected.value = value
+            return
+        }
+        const maybeFromGlobal = this.globalData.find(item => item.key === key)
+        if (maybeFromGlobal) {
+            maybeFromGlobal.value = value
+            return
+        }
+        this.selectedData.push({ key: key, value: value })
+    }
+
+    resolve(key) {
+        if (typeof (key) !== "string") {
+            throw Error('key is not string')
+        }
+        return hostResolve(key, [...this.selectedData, ...this.globalData])
+    }
+
+    delete(key) {
+        if (typeof (key) !== "string") {
+            throw Error('key is not string')
+        }
+        const indexInGlobal = this.globalData.findIndex((x) => x.key === key)
+        const indexInSelected = this.selectedData.findIndex((x) => x.key === key)
+        this.globalData.splice(indexInGlobal, 1)
+        this.selectedData.splice(indexInSelected, 1)
     }
 }
 
-class CallbackHandler {
-    constructor() {
-        this.requestCallbacks = []
-        this.responseCallbacks = []
-
-    }
-
-    addRequestCallback(fun) {
-        this.requestCallbacks.push(fun)
-    }
-
-    addResponseCallback(fun) {
-        this.responseCallbacks.push(fun)
-    }
-
-    executeRequestCallbacks(request) {
-        for (let callback of this.requestCallbacks) {
-            callback(request)
-        }
-    }
-
-    executeResponseCallbacks(response, request) {
-        for (let callback of this.responseCallbacks) {
-            callback(response, request)
-        }
+class LegacyEnv extends BaseEnv {
+    get(key) {
+        return this.getRaw(key)
     }
 }
 
+class Env extends BaseEnv {
+    constructor(data) {
+        super(data)
+        this.global = new EnvPart(data.global)
+        this.active = new EnvPart(data.selected)
+    }
+
+    get(key) {
+        return this.getResolve(key)
+    }
+}
+
+class Shared {
+    constructor(state) {
+        this.state = state
+    }
+
+    get(key) {
+        if (typeof (key) !== "string") {
+            throw Error('Key is not string')
+        }
+        return this.state[key]
+    }
+
+    create(key, value) {
+        if (typeof (key) !== "string") {
+            throw Error('Key is not string')
+        }
+        if (!this.state.hasOwnProperty(key)) {
+            this.state[key] = value
+
+        }
+    }
+
+    update(key, value) {
+        if (typeof (key) !== "string") {
+            throw Error('Key is not string')
+        }
+        if (!this.state.hasOwnProperty(key)) {
+            throw Error('Key does not exist')
+        }
+        // todo check value if serializable
+        this.state[key] = value
+    }
+
+    delete(key) {
+        if (typeof (key) !== "string") {
+            throw Error('Key is not string')
+        }
+        if (!this.state.hasOwnProperty(key)) {
+            throw Error('Key does not exist')
+        }
+        delete this.state[key]
+    }
+}
 
 // consolidate them
 let out
@@ -251,62 +470,61 @@ let test
 let console
 let env
 let pw
+let hopp
 
-let callbackHandler
-let onRequest
-let onResponse
-
-
-function setCurrentContext(context) {
-    const testSuite = new TestSuite()
-    test = (name, func) => testSuite.executeTest(name, func)
-    expect = (lhs) => testSuite.createExpect(lhs)
+function setPreRequestContext(context) {
+    const legacyEnv = new LegacyEnv(context.env)
+    const env = new Env(context.env)
     console = new Console()
-    env = new Env(context.env)
-    callbackHandler = new CallbackHandler()
-    onRequest = (fun) => callbackHandler.addRequestCallback(fun)
-    onResponse = (fun) => callbackHandler.addResponseCallback(fun)
+    const artifact = new Shared(context.artifact)
+    const shared = new Shared({})
+    pw = {
+        env: legacyEnv
+    }
+    hopp = {
+        env,
+        request: context.request,
+        artifact,
+        shared
+    }
     out = {
         console: console.consoleOutput,
-        env: { global: env.global, selected: env.selected },
-        tests: testSuite.tests
+        env: { global: env.globalData, selected: env.selectedData },
+        artifact: artifact.state,
+        shared: shared.state,
     }
 }
 
-function setLegacyPreRequestContext(context) {
-    const env = new Env(context.env)
-    pw = {
-        env
-    }
-    out = {
-        env: { global: env.global, selected: env.selected },
-    }
-}
-
-function setLegacyPostRequestContext(context) {
+function setPostRequestContext(context) {
     // console.log('before set post')
-    const console = new Console()
+    console = new Console()
     const testSuite = new TestSuite()
+    const legacyEnv = new LegacyEnv(context.env)
     const env = new Env(context.env)
+    const artifact = new Shared(context.artifact)
+    const shared = new Shared(context.shared)
+    // console = ourConsole
     pw = {
-        env,
+        env: legacyEnv,
         response: context.response,
-        console,
+        console: console,
+        test: (name, func) => testSuite.executeTest(name, func),
+        expect: (lhs) => testSuite.createExpect(lhs),
+    }
+    hopp = {
+        env,
+        request: context.request,
+        response: context.response,
+        artifact,
+        shared,
         test: (name, func) => testSuite.executeTest(name, func),
         expect: (lhs) => testSuite.createExpect(lhs),
     }
     out = {
         console: console.consoleOutput,
-        env: { global: env.global, selected: env.selected },
-        tests: testSuite.tests
+        env: { global: env.globalData, selected: env.selectedData },
+        tests: testSuite.tests,
+        artifact: artifact.state,
+        shared: shared.state
     }
-}
-
-function setContext(context) {
-    const choices = {
-        current: setCurrentContext,
-        legacyPreRequest: setLegacyPreRequestContext,
-        legacyPostRequest: setLegacyPostRequestContext
-    }
-    choices[context.mode](context)
 }
